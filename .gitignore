@@ -1,4 +1,4 @@
-sub2api
+/sub2api
 dist/
 *.test
 coverage.out
