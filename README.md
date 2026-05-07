@@ -4,11 +4,25 @@ Go CLI for viewing today's Sub2API usage in a terminal dashboard.
 
 ## Install
 
+Recommended: install the latest pre-built release bundle.
+
 ```bash
-go install github.com/alex/sub2api-cli@latest
+curl -fsSL https://raw.githubusercontent.com/alexzhang1030/sub2api-cli/main/scripts/install.sh | sh
 ```
 
-From this checkout:
+Install a specific version:
+
+```bash
+SUB2API_CLI_VERSION=v0.1.0 curl -fsSL https://raw.githubusercontent.com/alexzhang1030/sub2api-cli/main/scripts/install.sh | sh
+```
+
+Install to a custom directory:
+
+```bash
+SUB2API_CLI_INSTALL_DIR="$HOME/.local/bin" curl -fsSL https://raw.githubusercontent.com/alexzhang1030/sub2api-cli/main/scripts/install.sh | sh
+```
+
+Build locally when developing the CLI:
 
 ```bash
 go build -o sub2api .
@@ -33,6 +47,8 @@ git push origin v0.1.0
 The release workflow builds archives for macOS, Linux, and Windows, then publishes them to GitHub Releases with `checksums.txt`.
 
 You can also run the release workflow manually from GitHub Actions with a tag such as `v0.1.0`.
+
+Release archives are about 3-4 MB. This is normal for a statically linked Go CLI with terminal UI, HTTP, OAuth, and Keychain dependencies. The release build already uses `-ldflags "-s -w"` to strip symbol and debug tables.
 
 ## OAuth setup
 
