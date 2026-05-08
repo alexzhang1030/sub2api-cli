@@ -12,28 +12,72 @@ import (
 )
 
 type dashboardModel struct {
-	report usage.Report
-	width  int
+	report       usage.Report
+	width        int
+	refreshEvery time.Duration
+	refresh      func() (usage.Report, error)
+	refreshErr   string
 }
 
 func NewDashboard(report usage.Report) tea.Model {
 	return dashboardModel{report: report, width: 100}
 }
 
-func (m dashboardModel) Init() tea.Cmd { return nil }
+func NewLiveDashboard(report usage.Report, refreshEvery time.Duration, refresh func() (usage.Report, error)) tea.Model {
+	return dashboardModel{
+		report:       report,
+		width:        100,
+		refreshEvery: refreshEvery,
+		refresh:      refresh,
+	}
+}
+
+type refreshTickMsg struct{}
+
+func (m dashboardModel) Init() tea.Cmd {
+	return m.scheduleRefresh()
+}
 
 func (m dashboardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch v := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width = v.Width
+	case refreshTickMsg:
+		if m.refresh == nil {
+			return m, nil
+		}
+		report, err := m.refresh()
+		if err != nil {
+			m.refreshErr = err.Error()
+		} else {
+			m.report = report
+			m.refreshErr = ""
+		}
+		return m, m.scheduleRefresh()
 	case tea.KeyMsg:
-		return m, tea.Quit
+		switch v.Type {
+		case tea.KeyEnter, tea.KeyCtrlC, tea.KeyEsc:
+			return m, tea.Quit
+		}
 	}
 	return m, nil
 }
 
 func (m dashboardModel) View() string {
-	return Render(m.report, m.width)
+	view := Render(m.report, m.width)
+	if strings.TrimSpace(m.refreshErr) != "" {
+		view += "\n\n" + lipgloss.NewStyle().Foreground(lipgloss.Color("203")).Render("refresh failed: "+m.refreshErr)
+	}
+	return view + "\n\n" + lipgloss.NewStyle().Foreground(lipgloss.Color("245")).Render("press Enter to exit")
+}
+
+func (m dashboardModel) scheduleRefresh() tea.Cmd {
+	if m.refresh == nil || m.refreshEvery <= 0 {
+		return nil
+	}
+	return tea.Tick(m.refreshEvery, func(time.Time) tea.Msg {
+		return refreshTickMsg{}
+	})
 }
 
 func Render(report usage.Report, width int) string {

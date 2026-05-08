@@ -94,6 +94,8 @@ Render today's dashboard:
 sub2api today
 ```
 
+The dashboard refreshes every 5 seconds. Press `Enter` to exit.
+
 Show current user:
 
 ```bash

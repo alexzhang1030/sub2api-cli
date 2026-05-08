@@ -171,6 +171,7 @@ func readTokenInput(cmd *cobra.Command, fromFile string) ([]byte, error) {
 }
 
 func newTodayCommand(opts *appOptions) *cobra.Command {
+	const refreshEvery = 5 * time.Second
 	cmd := &cobra.Command{
 		Use:   "today",
 		Short: "Render today's usage dashboard",
@@ -179,7 +180,9 @@ func newTodayCommand(opts *appOptions) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			program := tea.NewProgram(render.NewDashboard(report), tea.WithOutput(cmd.OutOrStdout()))
+			program := tea.NewProgram(render.NewLiveDashboard(report, refreshEvery, func() (usage.Report, error) {
+				return loadTodayReport(cmd.Context(), opts)
+			}), tea.WithOutput(cmd.OutOrStdout()))
 			_, err = program.Run()
 			return err
 		},
