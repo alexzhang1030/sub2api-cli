@@ -94,7 +94,23 @@ Render today's dashboard:
 sub2api today
 ```
 
+Render the all-time dashboard:
+
+```bash
+sub2api all
+```
+
+Filter today's dashboard to matching models:
+
+```bash
+sub2api today --model gpt-5.5
+sub2api all --model gpt-5.5
+```
+
 The dashboard refreshes every 5 seconds. Press `Enter` to exit.
+Press `f` in the dashboard to filter model usage by model name. Press `Backspace` to edit, `Enter` to apply, and `Esc` to clear the filter.
+
+Filtered dashboards show a detail table with requests, tokens, input, output, cache write, cache read, cache hit, and cost. Token values at one million or higher use `M` notation. The model distribution includes each model's share of displayed cost.
 
 Show current user:
 

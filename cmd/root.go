@@ -22,6 +22,13 @@ type appOptions struct {
 	profile    string
 }
 
+type usageRange int
+
+const (
+	usageRangeToday usageRange = iota
+	usageRangeAll
+)
+
 func NewRootCommand() *cobra.Command {
 	opts := &appOptions{}
 	cmd := &cobra.Command{
@@ -30,7 +37,7 @@ func NewRootCommand() *cobra.Command {
 	}
 	cmd.PersistentFlags().StringVar(&opts.configPath, "config", "", "config file path")
 	cmd.PersistentFlags().StringVar(&opts.profile, "profile", config.DefaultProfile, "profile name")
-	cmd.AddCommand(newLoginCommand(opts), newTodayCommand(opts), newLogoutCommand(opts), newWhoamiCommand(opts))
+	cmd.AddCommand(newLoginCommand(opts), newTodayCommand(opts), newAllCommand(opts), newLogoutCommand(opts), newWhoamiCommand(opts))
 	return cmd
 }
 
@@ -172,21 +179,45 @@ func readTokenInput(cmd *cobra.Command, fromFile string) ([]byte, error) {
 
 func newTodayCommand(opts *appOptions) *cobra.Command {
 	const refreshEvery = 5 * time.Second
+	var modelFilter string
 	cmd := &cobra.Command{
 		Use:   "today",
 		Short: "Render today's usage dashboard",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			report, err := loadTodayReport(cmd.Context(), opts)
+			report, err := loadTodayReport(cmd.Context(), opts, modelFilter)
 			if err != nil {
 				return err
 			}
 			program := tea.NewProgram(render.NewLiveDashboard(report, refreshEvery, func() (usage.Report, error) {
-				return loadTodayReport(cmd.Context(), opts)
+				return loadTodayReport(cmd.Context(), opts, modelFilter)
 			}), tea.WithOutput(cmd.OutOrStdout()))
 			_, err = program.Run()
 			return err
 		},
 	}
+	cmd.Flags().StringVar(&modelFilter, "model", "", "filter dashboard to models containing this text")
+	return cmd
+}
+
+func newAllCommand(opts *appOptions) *cobra.Command {
+	const refreshEvery = 5 * time.Second
+	var modelFilter string
+	cmd := &cobra.Command{
+		Use:   "all",
+		Short: "Render all-time usage dashboard",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			report, err := loadAllReport(cmd.Context(), opts, modelFilter)
+			if err != nil {
+				return err
+			}
+			program := tea.NewProgram(render.NewLiveDashboard(report, refreshEvery, func() (usage.Report, error) {
+				return loadAllReport(cmd.Context(), opts, modelFilter)
+			}), tea.WithOutput(cmd.OutOrStdout()))
+			_, err = program.Run()
+			return err
+		},
+	}
+	cmd.Flags().StringVar(&modelFilter, "model", "", "filter dashboard to models containing this text")
 	return cmd
 }
 
@@ -223,12 +254,19 @@ func newLogoutCommand(opts *appOptions) *cobra.Command {
 	}
 }
 
-func loadTodayReport(ctx context.Context, opts *appOptions) (usage.Report, error) {
+func loadTodayReport(ctx context.Context, opts *appOptions, modelFilter string) (usage.Report, error) {
+	return loadUsageReport(ctx, opts, modelFilter, time.Now(), usageRangeToday)
+}
+
+func loadAllReport(ctx context.Context, opts *appOptions, modelFilter string) (usage.Report, error) {
+	return loadUsageReport(ctx, opts, modelFilter, time.Now(), usageRangeAll)
+}
+
+func loadUsageReport(ctx context.Context, opts *appOptions, modelFilter string, now time.Time, usageRange usageRange) (usage.Report, error) {
 	profile, client, err := clientFromOptions(ctx, opts)
 	if err != nil {
 		return usage.Report{}, err
 	}
-	now := time.Now()
 	_, _, label, err := config.TodayRange(profile.Timezone, now)
 	if err != nil {
 		return usage.Report{}, err
@@ -237,23 +275,38 @@ func loadTodayReport(ctx context.Context, opts *appOptions) (usage.Report, error
 	if err != nil {
 		return usage.Report{}, err
 	}
-	trend, err := client.GetDashboardTrend(ctx, label, label, "hour", profile.Timezone)
+	var trend []sub2api.TrendDataPoint
+	if usageRange == usageRangeToday {
+		trendResponse, err := client.GetDashboardTrend(ctx, label, label, "hour", profile.Timezone)
+		if err != nil {
+			return usage.Report{}, err
+		}
+		trend = trendResponse.Trend
+	}
+	modelStart := label
+	if usageRange == usageRangeAll {
+		modelStart = "1970-01-01"
+	}
+	models, err := client.GetDashboardModels(ctx, modelStart, label, profile.Timezone)
 	if err != nil {
 		return usage.Report{}, err
 	}
-	models, err := client.GetDashboardModels(ctx, label, label, profile.Timezone)
-	if err != nil {
-		return usage.Report{}, err
-	}
-	return usage.BuildTodayReport(usage.Input{
+	input := usage.Input{
 		Profile:   profile.Name,
 		Date:      label,
 		Timezone:  profile.Timezone,
 		Generated: now,
 		Stats:     stats,
-		Trend:     trend.Trend,
+		Trend:     trend,
 		Models:    models.Models,
-	}), nil
+	}
+	report := usage.BuildTodayReport(input)
+	if usageRange == usageRangeAll {
+		input.Date = "all-time"
+		report = usage.BuildAllReport(input)
+	}
+	report.ModelFilter = strings.TrimSpace(modelFilter)
+	return report, nil
 }
 
 func clientFromOptions(ctx context.Context, opts *appOptions) (config.Profile, *sub2api.Client, error) {
