@@ -68,15 +68,35 @@ verify_checksum() {
 install_binary() {
   src="$1"
   dest="$INSTALL_DIR/$BIN_NAME"
+  tmp_dest="$INSTALL_DIR/.$BIN_NAME.tmp.$$"
   mkdir -p "$INSTALL_DIR"
   if [ -w "$INSTALL_DIR" ]; then
-    cp "$src" "$dest"
-    chmod 0755 "$dest"
+    cp "$src" "$tmp_dest"
+    chmod 0755 "$tmp_dest"
+    sign_macos_binary "$tmp_dest"
+    mv "$tmp_dest" "$dest"
   else
-    sudo cp "$src" "$dest"
-    sudo chmod 0755 "$dest"
+    sudo cp "$src" "$tmp_dest"
+    sudo chmod 0755 "$tmp_dest"
+    sign_macos_binary_sudo "$tmp_dest"
+    sudo mv "$tmp_dest" "$dest"
   fi
+  rm -f "$tmp_dest" 2>/dev/null || true
   echo "installed $BIN_NAME to $dest"
+}
+
+sign_macos_binary() {
+  bin="$1"
+  if [ "$os" = "darwin" ] && command -v codesign >/dev/null 2>&1; then
+    codesign --force --sign - "$bin" >/dev/null 2>&1 || true
+  fi
+}
+
+sign_macos_binary_sudo() {
+  bin="$1"
+  if [ "$os" = "darwin" ] && command -v codesign >/dev/null 2>&1; then
+    sudo codesign --force --sign - "$bin" >/dev/null 2>&1 || true
+  fi
 }
 
 need uname
