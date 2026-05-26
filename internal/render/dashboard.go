@@ -162,19 +162,19 @@ func renderWide(report usage.Report) string {
 	card := lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.Color("63")).Padding(0, 2).Width(22)
 	row := lipgloss.JoinHorizontal(lipgloss.Top,
 		card.Render("Actual\n"+money(report.Totals.ActualCost)),
-		card.Render("Standard\n"+money(report.Totals.StandardCost)),
 		card.Render("Requests\n"+number(report.Totals.Requests)),
 		card.Render("Tokens\n"+tokenNumber(report.Totals.TotalTokens)),
+		card.Render("Cache Hit Rate\n"+percent(cacheHitRate(report.Totals))),
 	)
 	return row + "\n\n" + renderBreakdown(report) + "\n\n" + renderTrend(report) + "\n\n" + renderModels(report)
 }
 
 func renderCompact(report usage.Report) string {
-	return fmt.Sprintf("Actual %s | Standard %s | Requests %s | Tokens %s\n\n%s\n\n%s\n\n%s",
+	return fmt.Sprintf("Actual %s | Requests %s | Tokens %s | Cache Hit Rate %s\n\n%s\n\n%s\n\n%s",
 		money(report.Totals.ActualCost),
-		money(report.Totals.StandardCost),
 		number(report.Totals.Requests),
 		tokenNumber(report.Totals.TotalTokens),
+		percent(cacheHitRate(report.Totals)),
 		renderBreakdown(report),
 		renderTrend(report),
 		renderModels(report),
@@ -247,7 +247,7 @@ func renderModelDetail(report usage.Report) string {
 	b.WriteString(fmt.Sprintf("Matched models  %s\n", number(int64(len(report.Models)))))
 	b.WriteString(fmt.Sprintf("TOTAL  requests %s  tokens %s  actual %s  standard %s\n", number(report.Totals.Requests), tokenNumber(report.Totals.TotalTokens), money(report.Totals.ActualCost), money(report.Totals.StandardCost)))
 	b.WriteString(fmt.Sprintf("Tokens  input %s  output %s  cache write %s  cache read %s  cache hit %s\n\n",
-		tokenNumber(t.Input), tokenNumber(t.Output), tokenNumber(t.CacheCreation), tokenNumber(t.CacheRead), percent(cacheHitRate(t))))
+		tokenNumber(t.Input), tokenNumber(t.Output), tokenNumber(t.CacheCreation), tokenNumber(t.CacheRead), percent(cacheHitRate(report.Totals))))
 
 	if len(report.Models) == 0 {
 		b.WriteString("(no matching model usage today)")
@@ -373,12 +373,11 @@ func costPercent(value, total float64) string {
 	return fmt.Sprintf("%.1f%%", value/total*100)
 }
 
-func cacheHitRate(t usage.TokenBreakdown) float64 {
-	totalCacheTokens := t.CacheCreation + t.CacheRead
-	if totalCacheTokens <= 0 {
+func cacheHitRate(t usage.Totals) float64 {
+	if t.TotalTokens <= 0 {
 		return 0
 	}
-	return float64(t.CacheRead) / float64(totalCacheTokens)
+	return float64(t.TokenBreakdown.CacheRead) / float64(t.TotalTokens)
 }
 
 func number(v int64) string {

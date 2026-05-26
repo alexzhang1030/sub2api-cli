@@ -277,11 +277,24 @@ func TestRenderKeepsDefaultDashboardSummaryOnly(t *testing.T) {
 
 	view := Render(report, 100)
 
-	if strings.Contains(view, "Cache read") {
-		t.Fatalf("view contains cache read card = %q", view)
+	if strings.Contains(view, "Standard") {
+		t.Fatalf("view contains standard card = %q", view)
 	}
-	if strings.Contains(view, "cache hit") {
-		t.Fatalf("view contains cache hit = %q", view)
+	if !strings.Contains(view, "Cache Hit Rate") {
+		t.Fatalf("view missing cache hit rate card = %q", view)
+	}
+	if !strings.Contains(view, "40.0%") {
+		t.Fatalf("view missing cache hit rate value = %q", view)
+	}
+	actualIndex := strings.Index(view, "Actual")
+	requestsIndex := strings.Index(view, "Requests")
+	tokensIndex := strings.Index(view, "Tokens")
+	cacheHitIndex := strings.Index(view, "Cache Hit Rate")
+	if actualIndex < 0 || requestsIndex < 0 || tokensIndex < 0 || cacheHitIndex < 0 {
+		t.Fatalf("view missing summary card labels = %q", view)
+	}
+	if !(actualIndex < requestsIndex && requestsIndex < tokensIndex && tokensIndex < cacheHitIndex) {
+		t.Fatalf("summary cards out of order = %q", view)
 	}
 	if strings.Contains(view, "CACHE WRITE") {
 		t.Fatalf("view contains model detail table = %q", view)
@@ -407,6 +420,9 @@ func TestRenderShowsModelFilterDetailTable(t *testing.T) {
 	}
 	if !strings.Contains(view, "MODEL") {
 		t.Fatalf("view missing model table header = %q", view)
+	}
+	if !strings.Contains(view, "cache hit 55.6%") {
+		t.Fatalf("view missing total-token cache hit rate = %q", view)
 	}
 	if !strings.Contains(view, "openai/gpt-5.5") {
 		t.Fatalf("view missing model name = %q", view)
